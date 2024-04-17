@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, conint
+from pydantic import Field, ConfigDict, BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
+from typing_extensions import Annotated
 
 
 # pydantic Model to describe the structure of the Post-Object which comes from the API-Call
@@ -23,10 +24,7 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     created_at: datetime
-
-    # This ist neccessary to convert a pydantic model to the ORM model
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # pydantic Model to describe the structure of the Post-Response
@@ -35,10 +33,7 @@ class Post(PostBase):
     created_at: datetime
     owner_id: int
     owner: UserOut
-
-    # This ist neccessary to convert a pydantic model to the ORM model
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PostJoin(BaseModel):
@@ -71,4 +66,4 @@ class TokenData(BaseModel):
 
 class Vote(BaseModel):
     post_id: int
-    direction: conint(le=1)
+    direction: Annotated[int, Field(le=1)]

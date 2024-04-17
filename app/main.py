@@ -24,4 +24,4 @@ app.include_router(vote.router)
 
 @app.get("/")
 def root():
-    return "The URL is not complete / not defined"
+    return {"message": "The URL is not complete / not defined"}
