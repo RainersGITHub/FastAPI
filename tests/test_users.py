@@ -1,43 +1,7 @@
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
+from app import schemas
 from app.config import settings
-from app.database import get_db, Base
-from app.main import app
-from app import schemas, ormmodels
+from jose import jwt
 import pytest
-
-DATABASE_TYPE = settings.DATABASE_TYPE
-USERNAME = settings.USERNAME
-PASSWORD = settings.PASSWORD
-HOST = settings.HOST
-PORT = settings.PORT
-DATABASE_NAME = settings.DATABASE_NAME
-ENCODING = settings.ENCODING
-SQLALCHEMY_DATABASE_URL = f"{DATABASE_TYPE}://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{DATABASE_NAME}_test"
-
-engine = create_engine(f"{SQLALCHEMY_DATABASE_URL}", client_encoding=f"{ENCODING}")
-
-TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
-
-@pytest.fixture
-def client():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
-    yield TestClient(app)
 
 
 def test_root(client):
@@ -47,9 +11,37 @@ def test_root(client):
 
 
 def test_create_user(client):
-    result = client.post("/users/", json={"email": "rainer.rode@web.de", "password": "password123"})
+    user_data = {"email": "rainer.rode@web.de", "password": "password123"}
+    result = client.post("/users/", json=user_data)
 
-    print(result)
-    new_user = schemas.UserOut(**result.json())
     assert result.status_code == 201
+
+    new_user = schemas.UserOut(**result.json())
     assert new_user.email == "rainer.rode@web.de"
+    return new_user
+
+
+def test_login_user(client, create_test_user):
+    result = client.post("/login",
+                         data={"username": create_test_user['email'], "password": create_test_user['password']})
+
+    login_result = schemas.Token(**result.json())
+    payload = jwt.decode(login_result.access_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    id = payload.get("user_id")
+    assert id == create_test_user['id']
+    assert login_result.token_type == "bearer"
+    assert result.status_code == 200
+
+
+@pytest.mark.parametrize("email, password, status_code", [
+    ('wrongemail@gmail.com', 'password123', 403),
+    ('rainer.rode@mail.de', 'wrongpassword', 403),
+    ('wrongemail@gmail.com', 'wrongpassword', 403),
+    (None, 'password123', 422),
+    ('rainer.rode@mail.de', None, 422)
+])
+def test_incorrect_login(client, create_test_user, email, password, status_code):
+    result = client.post("/login",
+                         data={"username": email, "password": password})
+
+    assert result.status_code == status_code
