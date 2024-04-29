@@ -59,3 +59,86 @@ def test_create_post(authorized_client, create_test_user, test_posts, title, con
     assert created_post.title == title
     assert created_post.content == content
     assert created_post.published == published
+
+
+def test_create_post_default_published_true(authorized_client, create_test_user, test_posts):
+    testtitle = "Test Title"
+    testcontent = "Test content"
+    result = authorized_client.post("/posts/", json={"title": testtitle, "content": testcontent})
+
+    created_post = schemas.PostCreate(**result.json())
+
+    assert result.status_code == 201
+    assert created_post.title == testtitle
+    assert created_post.content == testcontent
+    assert created_post.published == True
+
+
+def test_unauthorized_user_create_post(client, create_test_user, test_posts):
+    testtitle = "Test Title"
+    testcontent = "Test content"
+    result = client.post("/posts/", json={"title": testtitle, "content": testcontent})
+    assert result.status_code == 401
+
+
+def test_unauthorized_user_delete_post(client, create_test_user, test_posts):
+    result = client.delete(f"/posts/{test_posts[0].id}")
+    assert result.status_code == 401
+
+
+def test_delete_post(authorized_client, create_test_user, test_posts):
+    result = authorized_client.delete(f"/posts/{test_posts[0].id}")
+    assert result.status_code == 204
+
+
+def test_delete_noexisting_post(authorized_client, create_test_user, test_posts):
+    result = authorized_client.delete("/posts/89898989")
+    assert result.status_code == 404
+
+
+def test_delete_other_users_post(authorized_client, create_test_user, test_posts):
+    result = authorized_client.delete(f"/posts/{test_posts[3].id}")
+    assert result.status_code == 403
+
+
+def test_update_post(authorized_client, create_test_user, test_posts):
+    data = {
+        "title": "updated Title",
+        "content": "updated content",
+        "id": test_posts[0].id
+    }
+
+    result = authorized_client.put(f"/posts/{test_posts[0].id}", json=data)
+    updated_post = schemas.PostUpdate(**result.json())
+
+    assert result.status_code == 200
+    assert updated_post.title == data['title']
+    assert updated_post.content == data['content']
+
+
+def test_update_other_users_post(authorized_client, create_test_user, test_posts, create_another_test_user):
+    data = {
+        "title": "updated Title2",
+        "content": "updated content2",
+        "id": test_posts[3].id
+    }
+
+    result = authorized_client.put(f"/posts/{test_posts[3].id}", json=data)
+
+    assert result.status_code == 403
+
+
+def test_unauthorized_user_update_post(client, create_test_user, test_posts):
+    result = client.put(f"/posts/{test_posts[0].id}")
+    assert result.status_code == 401
+
+
+def test_update_noexisting_post(authorized_client, create_test_user, test_posts):
+    data = {
+        "title": "updated Title3",
+        "content": "updated content3",
+        "id": test_posts[0].id
+    }
+
+    result = authorized_client.put("/posts/8989898976", json=data)
+    assert result.status_code == 404
